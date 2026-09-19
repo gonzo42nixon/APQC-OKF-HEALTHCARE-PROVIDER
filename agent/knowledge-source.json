@@ -5,6 +5,12 @@
   "version": "7.2.1",
   "language": "en",
   "licenseNotice": "../NOTICE.md",
+  "consumers": [
+    {
+      "name": "ORCAI Architecture AI Agent",
+      "manifest": "https://orcai-54321.web.app/ea/agent-manifest.json"
+    }
+  ],
   "entrypoints": {
     "canonicalNodes": "../okf/*/*.md",
     "hierarchicalJson": "../data/apqc_healthcare_provider_pcf.json",

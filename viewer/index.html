@@ -339,8 +339,9 @@ function selectNode(hid) {
     parentHtml = `<h3>Parent</h3><ul class="children"><li data-hid="${escapeAttr(p.hid)}"><span class="hid">${escapeHtml(p.hid)}</span>${escapeHtml(p.meta.title || "")}</li></ul>`;
   }
 
+  const repositoryPath = node.path.split("/").map(encodeURIComponent).join("/");
   const actionsHtml = state.repoBaseUrl
-    ? `<div class="actions"><a class="btn" href="${state.repoBaseUrl}/okf/${encodeURIComponent(hid + '.md')}" target="_blank" rel="noopener">🔗 In GitHub öffnen</a></div>`
+    ? `<div class="actions"><a class="btn" href="${state.repoBaseUrl}/${repositoryPath}" target="_blank" rel="noopener">🔗 In GitHub öffnen</a></div>`
     : "";
 
   const metaBlock = `

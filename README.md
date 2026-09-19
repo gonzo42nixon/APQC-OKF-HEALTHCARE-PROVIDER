@@ -6,7 +6,7 @@ Machine-readable knowledge graph of the APQC Process Classification Framework (P
 
 | Path | Purpose |
 | --- | --- |
-| `okf/` | Canonical Markdown nodes with YAML frontmatter |
+| `okf/1/` … `okf/13/` | Canonical Markdown nodes, grouped by top-level PCF category |
 | `data/apqc_healthcare_provider_pcf.json` | Hierarchical JSON representation |
 | `data/apqc_healthcare_provider_pcf_flat.json` | Flat JSON representation for search and retrieval |
 | `okf.zip` | Portable bundle accepted by the viewer |
@@ -17,7 +17,7 @@ Machine-readable knowledge graph of the APQC Process Classification Framework (P
 
 ## Node model
 
-Each `okf/<hierarchy_id>.md` file contains YAML metadata and a readable definition. The main fields are:
+Each `okf/<top_level>/<hierarchy_id>.md` file contains YAML metadata and a readable definition. For example, hierarchy `4.2.1` is stored as `okf/4/4.2.1.md`. The main fields are:
 
 - `pcf_id`: stable APQC process-element identifier
 - `hierarchy_id`: hierarchical position and filename stem
@@ -30,7 +30,7 @@ Each `okf/<hierarchy_id>.md` file contains YAML metadata and a readable definiti
 
 Point the agent or retrieval pipeline at `agent/knowledge-source.json`. For broad retrieval, index the flat JSON or the Markdown frontmatter and body. Once a candidate is found, load the canonical Markdown node and its parent/children before forming an answer. `AGENTS.md` contains the repository-specific grounding rules.
 
-Example citation: `1.1.1.1 Define and prioritize Service Areas (PCF ID 18758; okf/1.1.1.1.md)`.
+Example citation: `1.1.1.1 Define and prioritize Service Areas (PCF ID 18758; okf/1/1.1.1.1.md)`.
 
 ## Viewer
 

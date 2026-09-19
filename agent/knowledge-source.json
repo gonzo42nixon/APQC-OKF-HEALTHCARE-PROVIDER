@@ -6,7 +6,7 @@
   "language": "en",
   "licenseNotice": "../NOTICE.md",
   "entrypoints": {
-    "canonicalNodes": "../okf/*.md",
+    "canonicalNodes": "../okf/*/*.md",
     "hierarchicalJson": "../data/apqc_healthcare_provider_pcf.json",
     "flatJson": "../data/apqc_healthcare_provider_pcf_flat.json"
   },
@@ -27,4 +27,3 @@
     "publishedOn": "2023-04-28"
   }
 }
-

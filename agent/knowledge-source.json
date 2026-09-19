@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "APQC Healthcare Provider PCF",
+  "description": "OKF knowledge graph for process reasoning over the APQC Healthcare Provider PCF v7.2.1.",
+  "version": "7.2.1",
+  "language": "en",
+  "licenseNotice": "../NOTICE.md",
+  "entrypoints": {
+    "canonicalNodes": "../okf/*.md",
+    "hierarchicalJson": "../data/apqc_healthcare_provider_pcf.json",
+    "flatJson": "../data/apqc_healthcare_provider_pcf_flat.json"
+  },
+  "identity": {
+    "primaryKey": "pcf_id",
+    "hierarchyKey": "hierarchy_id",
+    "parentKey": "parent"
+  },
+  "retrieval": {
+    "search": ["title", "definition", "pcf_id", "hierarchy_id"],
+    "filters": ["type", "metrics_available"],
+    "expand": ["parent", "children"]
+  },
+  "provenance": {
+    "source": "APQC Process Classification Framework (PCF) - Healthcare Provider",
+    "sourceVersion": "7.2.1-en-XI",
+    "comparisonVersion": "6.1.1",
+    "publishedOn": "2023-04-28"
+  }
+}
+

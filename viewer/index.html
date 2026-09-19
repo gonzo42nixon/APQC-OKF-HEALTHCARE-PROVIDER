@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APQC PCF v7.2.1 — OKF Viewer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #1a2129; --panel-2: #232b35; --border: #2e3842;
+    --text: #e6edf3; --text-dim: #8b98a5; --accent: #4a9eff; --accent-dim: #2d5a8c;
+    --tag-cat: #7c5cff; --tag-group: #ffa726; --tag-process: #26c6da;
+    --tag-activity: #66bb6a; --tag-task: #ef5350;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+  }
+  #app { display: grid; grid-template-columns: 380px 1fr; height: 100vh; overflow: hidden; }
+  #sidebar { background: var(--panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+  #sidebar header { padding: 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  #sidebar h1 { margin: 0 0 4px 0; font-size: 15px; font-weight: 600; }
+  #sidebar .meta { font-size: 11px; color: var(--text-dim); }
+  #search { margin-top: 12px; width: 100%; padding: 8px 10px; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; }
+  #search:focus { border-color: var(--accent); }
+  #search-mode { margin-top: 6px; font-size: 11px; color: var(--text-dim); display: flex; gap: 12px; }
+  #search-mode label { cursor: pointer; user-select: none; }
+  #tree { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .tree-node { user-select: none; cursor: pointer; padding: 5px 12px; display: flex; align-items: center; gap: 6px; font-size: 13px; border-left: 2px solid transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tree-node:hover { background: var(--panel-2); }
+  .tree-node.active { background: var(--panel-2); border-left-color: var(--accent); }
+  .tree-node .hid { font-family: ui-monospace, "Cascadia Code", monospace; color: var(--text-dim); font-size: 11px; flex-shrink: 0; }
+  .tree-node .title { overflow: hidden; text-overflow: ellipsis; }
+  .tree-node.hidden { display: none; }
+  .tree-node mark { background: rgba(74, 158, 255, 0.3); color: inherit; padding: 0 1px; border-radius: 2px; }
+  #main { display: flex; flex-direction: column; overflow: hidden; }
+  #breadcrumbs { padding: 10px 28px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--panel); font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow-x: auto; }
+  #breadcrumbs a { color: var(--accent); text-decoration: none; cursor: pointer; }
+  #breadcrumbs a:hover { text-decoration: underline; }
+  #breadcrumbs .sep { margin: 0 6px; color: var(--border); }
+  #main-header { padding: 16px 28px; border-bottom: 1px solid var(--border); flex-shrink: 0; background: var(--panel); }
+  #main-header .hid { font-family: ui-monospace, monospace; color: var(--accent); font-size: 12px; }
+  #main-header h2 { margin: 4px 0 8px 0; font-size: 20px; font-weight: 600; }
+  #main-header .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  #main-header .actions { margin-top: 10px; display: flex; gap: 8px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-family: ui-monospace, monospace; background: var(--panel-2); color: var(--text-dim); }
+  .tag.Category { background: var(--tag-cat); color: white; }
+  .tag.ProcessGroup { background: var(--tag-group); color: #1a1a1a; }
+  .tag.Process { background: var(--tag-process); color: #1a1a1a; }
+  .tag.Activity { background: var(--tag-activity); color: #1a1a1a; }
+  .tag.Task { background: var(--tag-task); color: white; }
+  .tag.metrics { background: #2e7d32; color: white; }
+  .btn { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .btn:hover { border-color: var(--accent); }
+  #content { flex: 1; overflow-y: auto; padding: 24px 28px; }
+  #content h3 { margin: 24px 0 12px 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); }
+  #content h3:first-child { margin-top: 0; }
+  #content .definition { background: var(--panel); border-left: 3px solid var(--accent); padding: 12px 16px; border-radius: 4px; line-height: 1.6; }
+  #content ul.children { list-style: none; padding: 0; margin: 0; }
+  #content ul.children li { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: border-color 0.15s; }
+  #content ul.children li:hover { border-color: var(--accent); background: var(--panel); }
+  #content ul.children .hid { font-family: ui-monospace, monospace; color: var(--text-dim); font-size: 12px; margin-right: 8px; }
+  #content .kv { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; font-size: 13px; }
+  #content .kv .key { color: var(--text-dim); font-family: ui-monospace, monospace; }
+  #content .kv .val { word-break: break-word; }
+  #content pre.raw { background: var(--panel); padding: 12px; border-radius: 6px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: var(--text-dim); }
+  #dropzone { position: fixed; inset: 0; background: rgba(15, 20, 25, 0.95); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  #dropzone.hidden { display: none; }
+  #dropzone .box { border: 2px dashed var(--accent-dim); border-radius: 12px; padding: 60px 80px; text-align: center; max-width: 500px; }
+  #dropzone.drag .box { border-color: var(--accent); background: rgba(74, 158, 255, 0.05); }
+  #dropzone h2 { margin: 0 0 8px 0; font-size: 18px; }
+  #dropzone p { color: var(--text-dim); line-height: 1.6; margin: 8px 0 0 0; }
+  #dropzone button { margin-top: 20px; background: var(--accent); color: white; border: none; padding: 10px 24px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  #dropzone button:hover { background: #3a8ee6; }
+  #dropzone input[type="file"] { display: none; }
+  #empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); text-align: center; padding: 40px; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3d4852; }
+  #nav-toggle { display: none; }
+  @media (max-width: 720px) {
+    #app { display: block; }
+    #sidebar { position: fixed; inset: 0 15% 0 0; z-index: 20; box-shadow: 8px 0 28px rgba(0, 0, 0, 0.4); transform: translateX(-105%); transition: transform 0.2s ease; }
+    #app.nav-open #sidebar { transform: translateX(0); }
+    #main { height: 100vh; }
+    #nav-toggle { display: inline-flex; position: fixed; z-index: 30; right: 12px; bottom: 12px; min-width: 48px; min-height: 48px; align-items: center; justify-content: center; border-radius: 50%; background: var(--accent); color: white; border: 0; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); font-size: 20px; cursor: pointer; }
+    #breadcrumbs { padding-right: 72px; }
+    #main-header, #content { padding-left: 18px; padding-right: 18px; }
+    #content .kv { grid-template-columns: 110px 1fr; }
+    #dropzone .box { margin: 16px; padding: 36px 24px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <header>
+      <h1>APQC PCF v7.2.1</h1>
+      <div class="meta" id="stats">Kein Bundle geladen</div>
+      <input type="text" id="search" placeholder="Suchen (ID oder Name)…" disabled>
+      <div id="search-mode">
+        <label><input type="checkbox" id="chk-fulltext" checked> Volltext (Body)</label>
+      </div>
+    </header>
+    <div id="tree"></div>
+  </aside>
+  <main id="main">
+    <div id="empty">Wähle links einen Knoten aus.</div>
+  </main>
+  <button id="nav-toggle" type="button" aria-label="Navigation öffnen" aria-expanded="false">☰</button>
+</div>
+
+<div id="dropzone">
+  <div class="box">
+    <h2>OKF-Bundle laden</h2>
+    <p>Ziehe die <code>okf.zip</code> hierher oder klicke, um sie auszuwählen.</p>
+    <button onclick="document.getElementById('file-input').click()">ZIP auswählen</button>
+    <input type="file" id="file-input" accept=".zip">
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ========== State ========== */
+const state = {
+  nodes: new Map(),
+  roots: [],
+  selected: null,
+  filter: "",
+  fulltext: true,
+  repoBaseUrl: null, // Optional: GitHub-Repo-URL, aus URL-Parameter
+};
+
+/* ========== YAML Frontmatter Parser ========== */
+function parseFrontmatter(text) {
+  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!m) return { meta: {}, body: text };
+  const meta = {};
+  let currentKey = null, currentArr = null;
+  for (const rawLine of m[1].split(/\r?\n/)) {
+    if (!rawLine.trim()) continue;
+    const arrMatch = rawLine.match(/^\s*-\s+(.*)$/);
+    if (arrMatch && currentArr) { currentArr.push(unquote(arrMatch[1].trim())); continue; }
+    const kv = rawLine.match(/^([a-zA-Z_][a-zA-Z0-9_]*):\s*(.*)$/);
+    if (kv) {
+      currentKey = kv[1];
+      const val = kv[2].trim();
+      if (val === "") { currentArr = []; meta[currentKey] = currentArr; }
+      else if (val === "[]") { meta[currentKey] = []; currentArr = null; }
+      else { meta[currentKey] = parseScalar(val); currentArr = null; }
+    }
+  }
+  return { meta, body: m[2] };
+}
+
+function unquote(s) {
+  if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'")))
+    return s.slice(1, -1);
+  return s;
+}
+
+function parseScalar(s) {
+  s = unquote(s);
+  if (s === "true") return true;
+  if (s === "false") return false;
+  if (s === "" || s === "null" || s === "~" || s === "None") return null;
+  return s;
+}
+
+/* ========== Body-Parser (mit Sonderfall X.0) ========== */
+function parseBody(body, hid) {
+  const lines = body.split(/\r?\n/);
+  const sections = { title: "", definition: "", children: [] };
+  let mode = "before-title", defBuf = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine;
+    if (/^#\s+/.test(line)) {
+      sections.title = line.replace(/^#\s+/, "").trim();
+      mode = "definition"; continue;
+    }
+    if (/^##\s+/.test(line)) {
+      const heading = line.replace(/^##\s+/, "").trim().toLowerCase();
+      if (mode === "definition") { sections.definition = defBuf.join("\n").trim(); defBuf = []; }
+      mode = (heading === "sub-elements" || heading === "sub elements") ? "children" : "other";
+      continue;
+    }
+    if (mode === "definition") defBuf.push(line);
+    else if (mode === "children") {
+      const lm = line.match(/^-\s*\[([^\]]+)\]\(\.?\/?([^)]+)\)\s*$/);
+      if (lm) {
+        const label = lm[1];
+        const target = lm[2];
+        const childHid = target.replace(/\.md$/, "");
+        const idMatch = label.match(/^([0-9]+(?:\.[0-9]+)*)\s+(.*)$/);
+        sections.children.push({
+          hid: childHid,
+          id: idMatch ? idMatch[1] : childHid,
+          title: idMatch ? idMatch[2] : label
+        });
+      }
+    }
+  }
+  if (mode === "definition") sections.definition = defBuf.join("\n").trim();
+  return sections;
+}
+
+/* ========== Baum aufbauen ========== */
+function cmp(a, b) {
+  const pa = a.hid.split(".").map(n => parseInt(n, 10));
+  const pb = b.hid.split(".").map(n => parseInt(n, 10));
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? -1, y = pb[i] ?? -1;
+    if (x !== y) return x - y;
+  }
+  return 0;
+}
+
+function buildTree() {
+  for (const node of state.nodes.values()) node.children = [];
+  for (const node of state.nodes.values()) {
+    const parentId = node.meta.parent;
+    if (parentId && parentId !== node.hid) {
+      const parent = state.nodes.get(parentId);
+      if (parent) parent.children.push(node);
+    }
+  }
+  for (const node of state.nodes.values()) node.children.sort(cmp);
+  state.roots = [...state.nodes.values()]
+    .filter(n => {
+      const p = n.meta.parent;
+      if (!p) return true;
+      if (p === n.hid) return true;
+      if (!state.nodes.has(p)) return true;
+      return false;
+    })
+    .sort(cmp);
+}
+
+/* ========== Baum rendern ========== */
+function renderTree() {
+  const tree = document.getElementById("tree");
+  tree.innerHTML = "";
+  const filter = state.filter.toLowerCase();
+
+  const visibleSet = new Set();
+  if (filter) {
+    for (const node of state.nodes.values()) {
+      const haystackTitle = (node.hid + " " + (node.meta.title || "")).toLowerCase();
+      const haystackBody = state.fulltext ? (node.body || "").toLowerCase() : "";
+      if (haystackTitle.includes(filter) || haystackBody.includes(filter)) {
+        let cur = node;
+        const ancestors = new Set();
+        while (cur && !ancestors.has(cur.hid)) {
+          ancestors.add(cur.hid);
+          visibleSet.add(cur.hid);
+          cur = cur.meta.parent ? state.nodes.get(cur.meta.parent) : null;
+        }
+      }
+    }
+  }
+
+  const walk = (node, depth) => {
+    if (filter && !visibleSet.has(node.hid)) return;
+    const el = document.createElement("div");
+    el.className = "tree-node";
+    if (state.selected === node.hid) el.classList.add("active");
+    el.dataset.hid = node.hid;
+    el.style.paddingLeft = (12 + depth * 14) + "px";
+    const title = escapeHtml(node.meta.title || "");
+    const hid = escapeHtml(node.hid);
+    const displayTitle = filter && title.toLowerCase().includes(filter) ? highlight(title, filter) : title;
+    el.innerHTML = `<span class="hid">${hid}</span><span class="title">${displayTitle}</span>`;
+    el.onclick = () => selectNode(node.hid);
+    tree.appendChild(el);
+    for (const child of node.children) walk(child, depth + 1);
+  };
+
+  for (const root of state.roots) walk(root, 0);
+}
+
+function highlight(text, term) {
+  const idx = text.toLowerCase().indexOf(term);
+  if (idx < 0) return text;
+  return text.slice(0, idx) + "<mark>" + text.slice(idx, idx + term.length) + "</mark>" + text.slice(idx + term.length);
+}
+
+/* ========== Breadcrumbs ========== */
+function renderBreadcrumbs(hid) {
+  const crumbs = [];
+  const visited = new Set();
+  let cur = state.nodes.get(hid);
+  while (cur && !visited.has(cur.hid)) {
+    visited.add(cur.hid);
+    crumbs.unshift(cur);
+    cur = cur.meta.parent ? state.nodes.get(cur.meta.parent) : null;
+  }
+  return crumbs.map((n, i) => {
+    if (i === crumbs.length - 1) return `<span>${escapeHtml(n.hid)} ${escapeHtml(n.meta.title || "")}</span>`;
+    return `<a data-hid="${escapeAttr(n.hid)}" class="crumb">${escapeHtml(n.hid)} ${escapeHtml(n.meta.title || "")}</a>`;
+  }).join('<span class="sep">›</span>');
+}
+
+/* ========== Knoten auswählen + Detail rendern ========== */
+function selectNode(hid) {
+  state.selected = hid;
+  renderTree();
+  const node = state.nodes.get(hid);
+  if (!node) return;
+
+  // URL-Hash aktualisieren
+  if (location.hash !== "#" + hid) {
+    history.replaceState(null, "", "#" + hid);
+  }
+
+  const main = document.getElementById("main");
+  const meta = node.meta;
+  const parsed = node.parsed;
+
+  const tags = [];
+  if (meta.type) tags.push(`<span class="tag ${meta.type}">${meta.type}</span>`);
+  if (meta.metrics_available) tags.push(`<span class="tag metrics">Metrics ✓</span>`);
+
+  let childrenHtml = "";
+  if (parsed.children.length) {
+    childrenHtml = `<h3>Sub-Elements (${parsed.children.length})</h3><ul class="children">` +
+      parsed.children.map(c => `<li data-hid="${escapeAttr(c.hid)}"><span class="hid">${escapeHtml(c.id)}</span>${escapeHtml(c.title)}</li>`).join("") +
+      `</ul>`;
+  }
+
+  let parentHtml = "";
+  if (meta.parent && meta.parent !== node.hid && state.nodes.has(meta.parent)) {
+    const p = state.nodes.get(meta.parent);
+    parentHtml = `<h3>Parent</h3><ul class="children"><li data-hid="${escapeAttr(p.hid)}"><span class="hid">${escapeHtml(p.hid)}</span>${escapeHtml(p.meta.title || "")}</li></ul>`;
+  }
+
+  const actionsHtml = state.repoBaseUrl
+    ? `<div class="actions"><a class="btn" href="${state.repoBaseUrl}/okf/${encodeURIComponent(hid + '.md')}" target="_blank" rel="noopener">🔗 In GitHub öffnen</a></div>`
+    : "";
+
+  const metaBlock = `
+    <h3>Metadaten</h3>
+    <div class="kv">
+      <div class="key">PCF ID</div><div class="val">${escapeHtml(meta.pcf_id || "—")}</div>
+      <div class="key">Hierarchy ID</div><div class="val">${escapeHtml(meta.hierarchy_id || "—")}</div>
+      <div class="key">Typ</div><div class="val">${escapeHtml(meta.type || "—")}</div>
+      <div class="key">Parent</div><div class="val">${escapeHtml(meta.parent || "—")}</div>
+      <div class="key">Quelle</div><div class="val">${escapeHtml((meta.sources || []).join(", ") || "—")}</div>
+      <div class="key">Metriken</div><div class="val">${meta.metrics_available ? "Ja" : "Nein"}</div>
+      ${meta.change_summary ? `<div class="key">Änderung</div><div class="val">${escapeHtml(meta.change_summary)}</div>` : ""}
+    </div>`;
+
+  const defBlock = parsed.definition ? `<h3>Definition</h3><div class="definition">${escapeHtml(parsed.definition)}</div>` : "";
+
+  main.innerHTML = `
+    <div id="breadcrumbs">${renderBreadcrumbs(hid)}</div>
+    <div id="main-header">
+      <div class="hid">${escapeHtml(meta.hierarchy_id || hid)}</div>
+      <h2>${escapeHtml(meta.title || "(ohne Titel)")}</h2>
+      <div class="tags">${tags.join("")}</div>
+      ${actionsHtml}
+    </div>
+    <div id="content">
+      ${defBlock}${childrenHtml}${parentHtml}${metaBlock}
+      <h3>Rohdaten (Frontmatter)</h3>
+      <pre class="raw">${escapeHtml(JSON.stringify(meta, null, 2))}</pre>
+    </div>`;
+
+  main.querySelectorAll("#content ul.children li").forEach(li => { li.onclick = () => selectNode(li.dataset.hid); });
+  main.querySelectorAll("#breadcrumbs a.crumb").forEach(a => { a.onclick = () => selectNode(a.dataset.hid); });
+  if (matchMedia("(max-width: 720px)").matches) setNavigationOpen(false);
+}
+
+/* ========== ZIP laden ========== */
+async function loadZip(file) {
+  const zip = await JSZip.loadAsync(file);
+  state.nodes.clear();
+  state.selected = null;
+  const entries = [];
+  zip.forEach((path, entry) => { if (!entry.dir && path.endsWith(".md")) entries.push({ path, entry }); });
+  if (!entries.length) { alert("Keine .md-Dateien im ZIP gefunden."); return; }
+
+  for (const { path, entry } of entries) {
+    const text = await entry.async("string");
+    const { meta, body } = parseFrontmatter(text);
+    const hid = meta.hierarchy_id || path.replace(/\.md$/, "");
+    const parsed = parseBody(body, hid);
+    state.nodes.set(hid, { hid, meta, body, parsed, children: [], path });
+  }
+  buildTree();
+  document.getElementById("stats").textContent = `${state.nodes.size} Knoten · ${state.roots.length} Wurzeln`;
+  document.getElementById("search").disabled = false;
+  document.getElementById("search").value = "";
+  state.filter = "";
+  renderTree();
+  const main = document.getElementById("main");
+  main.innerHTML = `<div id="empty">Wähle links einen Knoten aus.</div>`;
+
+  // Deep-Link aus URL-Hash?
+  const initialHid = location.hash.replace(/^#/, "");
+  if (initialHid && state.nodes.has(initialHid)) selectNode(initialHid);
+  else if (state.roots.length) selectNode(state.roots[0].hid);
+}
+
+/* ========== Helpers ========== */
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
+function escapeAttr(s) { return escapeHtml(s); }
+
+/* ========== Event Bindings ========== */
+const dz = document.getElementById("dropzone");
+const fi = document.getElementById("file-input");
+dz.addEventListener("click", (e) => { if (e.target.tagName !== "BUTTON" && e.target.tagName !== "INPUT") fi.click(); });
+fi.addEventListener("change", (e) => { const f = e.target.files[0]; if (f) handleFile(f); });
+["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("drag"); }));
+["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("drag"); }));
+dz.addEventListener("drop", (e) => { const f = e.dataTransfer.files[0]; if (f) handleFile(f); });
+
+async function handleFile(file) {
+  if (!file.name.endsWith(".zip")) { alert("Bitte eine ZIP-Datei ablegen."); return; }
+  try { await loadZip(file); dz.classList.add("hidden"); }
+  catch (err) { console.error(err); alert("Fehler beim Laden: " + err.message); }
+}
+
+document.getElementById("search").addEventListener("input", (e) => { state.filter = e.target.value.trim(); renderTree(); });
+document.getElementById("chk-fulltext").addEventListener("change", (e) => { state.fulltext = e.target.checked; renderTree(); });
+const navToggle = document.getElementById("nav-toggle");
+function setNavigationOpen(open) {
+  document.getElementById("app").classList.toggle("nav-open", open);
+  navToggle.setAttribute("aria-expanded", String(open));
+  navToggle.setAttribute("aria-label", open ? "Navigation schließen" : "Navigation öffnen");
+  navToggle.textContent = open ? "×" : "☰";
+}
+navToggle.addEventListener("click", () => setNavigationOpen(!document.getElementById("app").classList.contains("nav-open")));
+
+window.addEventListener("hashchange", () => {
+  const hid = location.hash.replace(/^#/, "");
+  if (hid && state.nodes.has(hid)) selectNode(hid);
+});
+
+/* ========== Optional: GitHub-Repo-URL aus URL-Parameter ========== */
+(() => {
+  const params = new URLSearchParams(location.search);
+  const repo = params.get("repo");
+  const repository = repo || "https://github.com/gonzo42nixon/APQC-OKF-HEALTHCARE-PROVIDER";
+  state.repoBaseUrl = repository.replace(/\/$/, "") + "/blob/main";
+})();
+
+/* ========== Repository-Bundle automatisch laden ========== */
+(async () => {
+  if (location.protocol === "file:") return;
+  const bundleUrl = new URLSearchParams(location.search).get("bundle") || "../okf.zip";
+  try {
+    const response = await fetch(bundleUrl);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    await loadZip(await response.blob());
+    dz.classList.add("hidden");
+  } catch (error) {
+    console.info("Automatisches Bundle-Laden nicht verfügbar:", error);
+  }
+})();
+</script>
+</body>
+</html>
